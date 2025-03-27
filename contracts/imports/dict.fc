@@ -1,55 +1,49 @@
+#include "constants.fc";
 #include "stdlib.fc";
 #include "utils.fc";
 
-(slice, slice) read_hml(slice src, int key_len) impure inline {
-    if (src~load_uint(1)) {
-        if (src~load_uint(1)) {
+(slice, int, int) read_hml(slice src, int key_len) impure inline {
+    if (src~load_bit()) {
+        if (src~load_bit()) {
             ;; hml_same$11
-            int x = src~load_uint(1);
-            slice s = begin_cell().store_same(key_len, x).end_cell().begin_parse();
-            return (src, s);
+            int v = src~load_bit();
+            int n = src~load_uint(get_bit_size(key_len));
+            int s = (v << n) - v;
+            return (src, s, n);
         } else {
             ;; hml_long$10
             int n = src~load_uint(get_bit_size(key_len));
-            slice s = src~load_bits(n);
-            return (src, s);
+            int s = src~load_uint(n);
+            return (src, s, n);
         }
     } else {
         ;; hml_short$0
         int n = src~load_ones();
         src~skip_bits(1);
-        slice s = src~load_bits(n);
-        return (src, s);
+        int s = src~load_uint(n);
+        return (src, s, n);
     }
 }
 
-(slice, int) aug_dict_get(slice cs, slice key) impure inline {
+slice aug_dict_get(slice src, slice key) impure inline {
     int key_len = key.slice_bits();
-    while (key_len > 0) {
-        (cs, slice prefix) = read_hml(cs, key_len);
-        int size = prefix.slice_bits();
-        key_len -= size;
+    while (key_len >= 0) {
+        (src, int prefix, int len) = read_hml(src, key_len);
+        throw_unless(error::key_not_found, key~load_uint(len) == prefix);
+        key_len -= len;
         if (key_len == 0) {
-            return (cs, -1);
+            return src;
         }
-        ifnot (slice_has_prefix(key, prefix)) {
-            return (null(), 0);
-        }
-        key~skip_bits(size);
-
-        int is_right = key~load_uint(1);
+        int ref_idx = key~load_bit();
+        src = src.load_ref_n(ref_idx).begin_parse();
         key_len -= 1;
-        if (is_right) {
-            cs = cs.load_ref_1().begin_parse();
-        } else {
-            cs = cs~load_ref().begin_parse();
-        }
     }
-    return (null(), 0);
+    throw(error::key_not_found);
+    return null();
 }
 
 slice bintree_search(slice cs) impure inline {
-    while (cs~load_int(1)) {
+    while (cs~load_bit()) {
         (slice left, int exotic) = cs~load_ref().begin_parse_exotic();
         cs = exotic ? cs~load_ref().begin_parse() : left;
     }

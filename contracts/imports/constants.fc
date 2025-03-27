@@ -11,7 +11,7 @@ const int error::not_enough_signatures     = 115;
 const int error::invalid_epoch             = 116;
 
 ;;; TransactionChecker
-const int error::tx_not_found_in_block     = 200;
+const int error::key_not_found             = 200;
 const int error::invalid_tx_hash           = 201;
 const int error::block_is_not_mc           = 202;
 const int error::not_lite_client           = 203;

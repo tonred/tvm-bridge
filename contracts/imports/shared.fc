@@ -68,13 +68,12 @@ tuple parse_lite_client_data(cell data) impure inline {
         .begin_parse()
         .preload_ref();
 
-    (slice account_block, _) = account_blocks
+    slice account_block = account_blocks
         .begin_parse()
-        .aug_dict_get(begin_cell().store_uint(account_block_id, 256).end_cell().begin_parse());
+        .aug_dict_get(uint_as_slice(account_block_id, 256));
     account_block~skip_currency_collection();
     account_block~skip_bits(4 + 256);
-    (slice tx, int found) = account_block.aug_dict_get(begin_cell().store_uint(lt, 64).end_cell().begin_parse());
-    throw_unless(error::tx_not_found_in_block, found);
+    slice tx = account_block.aug_dict_get(uint_as_slice(lt, 64));
     int hash = tx~load_ref().cell_hash_0();
     throw_unless(error::invalid_tx_hash, hash == tx_id);
 }
