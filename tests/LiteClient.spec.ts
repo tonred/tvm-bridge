@@ -142,14 +142,14 @@ describe.each([
             expect(checkBlockResult.transactions).toHaveTransaction({
                 from: syncer.address,
                 to: liteClient.address,
-                op: Opcodes.checkBlock,
+                op: Opcodes.CheckBlock,
                 success: true,
             });
             expect(checkBlockResult.transactions).toHaveTransaction({
                 from: liteClient.address,
                 to: syncer.address,
                 success: true,
-                op: Opcodes.correct,
+                op: Opcodes.Correct,
             });
             const sendNewKeyBlockResult = await liteClient.sendNewKeyBlock(syncer.getSender(), {
                 value: toNano('0.1'),
@@ -168,14 +168,14 @@ describe.each([
             expect(sendNewKeyBlockResult.transactions).toHaveTransaction({
                 from: syncer.address,
                 to: liteClient.address,
-                op: Opcodes.newKeyBlock,
+                op: Opcodes.NewKeyBlock,
                 success: true,
             });
             expect(sendNewKeyBlockResult.transactions).toHaveTransaction({
                 from: liteClient.address,
                 to: syncer.address,
                 success: true,
-                op: Opcodes.ok,
+                op: Opcodes.Ok,
             });
             const stateAfter = await liteClient.getState();
             checkStateToBeEqual(stateAfter, nextSeqno, nextConfigCell);
@@ -226,9 +226,9 @@ describe.each([
             expect(sendNewKeyBlockResult.transactions).toHaveTransaction({
                 from: syncer.address,
                 to: liteClient.address,
-                op: Opcodes.newKeyBlock,
+                op: Opcodes.NewKeyBlock,
                 success: false,
-                exitCode: ErrorCodes.notExotic,
+                exitCode: ErrorCodes.NotExotic,
             });
         });
         it('should reject non Merkle Proof cell', async () => {
@@ -249,9 +249,9 @@ describe.each([
             expect(sendNewKeyBlockResult.transactions).toHaveTransaction({
                 from: syncer.address,
                 to: liteClient.address,
-                op: Opcodes.newKeyBlock,
+                op: Opcodes.NewKeyBlock,
                 success: false,
-                exitCode: ErrorCodes.notMerkleProof,
+                exitCode: ErrorCodes.NotMerkleProof,
             });
         });
         it.skip('should reject Merkle Proof with invalid hash', async () => {

@@ -2,19 +2,22 @@ import { Blockchain, printTransactionFees, SandboxContract, SendMessageResult, T
 import { beginCell, Cell, Dictionary, toNano } from '@ton/core';
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
-import { HashmapTest } from '../wrappers/HashmapTest';
+import { DictTest } from '../wrappers/DictTest';
 import seedrandom, { PRNG } from 'seedrandom';
 import { FeesTracker } from '../scripts/imports/utils/fees';
+import { ErrorCodes } from '../wrappers/TransactionChecker';
 
-describe('HashmapTest', () => {
+const SEED = 'ton-trustless-bridge';
+
+describe('DictTest', () => {
     let code: Cell;
     let blockchain: Blockchain;
     let deployer: SandboxContract<TreasuryContract>;
-    let contract: SandboxContract<HashmapTest>;
+    let contract: SandboxContract<DictTest>;
     const verbosity = false;
 
     beforeAll(async () => {
-        code = await compile('HashmapTest');
+        code = await compile('DictTest');
         blockchain = await Blockchain.create();
         if (verbosity) {
             blockchain.verbosity = {
@@ -25,7 +28,7 @@ describe('HashmapTest', () => {
             };
         }
         deployer = await blockchain.treasury('deployer');
-        contract = blockchain.openContract(HashmapTest.createFromConfig(code));
+        contract = blockchain.openContract(DictTest.createFromConfig(code));
         const deployResult = await contract.sendDeploy(deployer.getSender(), toNano('0.05'));
         expect(deployResult.transactions).toHaveTransaction({
             from: deployer.address,
@@ -71,14 +74,14 @@ describe('HashmapTest', () => {
     });
 
     it('one value', async () => {
-        const rng = seedrandom('ton-trustless-bridge');
+        const rng = seedrandom(SEED);
         const data = [[random(rng, 16), random(rng, 16)]];
         const fees = await run(data, 16, 16, false, true);
         fees.print();
     });
 
     it('two values', async () => {
-        const rng = seedrandom('ton-trustless-bridge');
+        const rng = seedrandom(SEED);
         const data = [
             [0n, random(rng, 16)],
             [65535n, random(rng, 16)],
@@ -103,7 +106,7 @@ describe('HashmapTest', () => {
         [512, 64, 256], // fees: 2.044957600 | 45 sec
         [512, 256, 256], // fees: 2.060378800 | 53 sec
     ])('random slow %d of %d:%d', async (size: number, keyBits: number, valueBits: number) => {
-        const rng = seedrandom('ton-trustless-bridge');
+        const rng = seedrandom(SEED);
         const data = randomDictData(rng, size, keyBits, valueBits);
         const fees = await run(data, keyBits, valueBits);
         fees.print();
@@ -114,7 +117,7 @@ describe('HashmapTest', () => {
         [64, 256], // fees (last): 4.235042000
         [256, 256], // fees (last): 4.245138800
     ])('random fast 128..1024 of %d:%d', async (keyBits: number, valueBits: number) => {
-        const rng = seedrandom('ton-trustless-bridge');
+        const rng = seedrandom(SEED);
         for (let size = 128; size <= 1024; size += 128) {
             const data = randomDictData(rng, size, keyBits, valueBits);
             const fees = await run(data, keyBits, valueBits, true, true);
@@ -127,12 +130,38 @@ describe('HashmapTest', () => {
         [64, 256], // fees (last): 14.342000400
         [256, 256], // fees (last): 14.330548000
     ])('random fast 2048, 3072 of %d:%d', async (keyBits: number, valueBits: number) => {
-        const rng = seedrandom('ton-trustless-bridge');
+        const rng = seedrandom(SEED);
         for (let size of [2048, 3072]) {
             const data = randomDictData(rng, size, keyBits, valueBits);
             const fees = await run(data, keyBits, valueBits, true, true);
             fees.print();
         }
+    });
+
+    it('not found', async (size: number = 256, keyBits: number = 16, valueBits: number = 16) => {
+        const rng = seedrandom(SEED);
+        const key = random(rng, keyBits);
+        let data: bigint[][];
+        do {
+            data = randomDictData(rng, size, keyBits, valueBits);
+        } while (data.find((item) => item[0] === key));
+
+        const dict = createDict(data, keyBits, valueBits);
+        const keyCell = beginCell().storeUint(key, keyBits).endCell();
+        const valueCell = beginCell().storeUint(0, valueBits).endCell();
+        const result = await contract.sendTestOne(deployer.getSender(), {
+            value: toNano('0.05'),
+            dict: dict,
+            key: keyCell,
+            expected: valueCell,
+        });
+        expect(result.transactions).toHaveTransaction({
+            from: deployer.address,
+            to: contract.address,
+            success: false,
+            exitCode: ErrorCodes.KeyNotFound,
+        });
+        printTransactionFees(result.transactions);
     });
 
     async function run(
@@ -142,16 +171,11 @@ describe('HashmapTest', () => {
         fast: boolean = false,
         print: boolean = false,
     ): Promise<FeesTracker> {
-        let dictRaw = Dictionary.empty(Dictionary.Keys.BigUint(keyBits), Dictionary.Values.BigUint(valueBits));
-        for (const [key, value] of data) {
-            dictRaw.set(key, value);
-        }
-        const dict = beginCell().storeDictDirect(dictRaw).endCell();
-
+        const dict = createDict(data, keyBits, valueBits);
         let fees = new FeesTracker('Total');
         if (fast) {
             const result = await contract.sendTestFull(deployer.getSender(), {
-                value: toNano('100'),
+                value: toNano(0.05 * data.length),
                 keyBits: keyBits,
                 dict: dict,
             });
@@ -161,7 +185,7 @@ describe('HashmapTest', () => {
                 const keyCell = beginCell().storeUint(key, keyBits).endCell();
                 const valueCell = beginCell().storeUint(value, valueBits).endCell();
                 const result = await contract.sendTestOne(deployer.getSender(), {
-                    value: toNano('1'),
+                    value: toNano('0.05'),
                     dict: dict,
                     key: keyCell,
                     expected: valueCell,
@@ -170,6 +194,14 @@ describe('HashmapTest', () => {
             }
         }
         return fees;
+    }
+
+    function createDict(data: bigint[][], keyBits: number, valueBits: number): Cell {
+        let raw = Dictionary.empty(Dictionary.Keys.BigUint(keyBits), Dictionary.Values.BigUint(valueBits));
+        for (const [key, value] of data) {
+            raw.set(key, value);
+        }
+        return beginCell().storeDictDirect(raw).endCell();
     }
 
     function processResult(result: SendMessageResult, fees: FeesTracker, print: boolean = false) {

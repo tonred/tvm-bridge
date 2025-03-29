@@ -145,14 +145,14 @@ describe('TransactionCheckerContactless', () => {
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: client.address,
                 to: transactionChecker.address,
-                op: Opcodes.checkTransaction,
+                op: Opcodes.CheckTransaction,
                 success: true,
             });
             // expect(checkTxResult.transactions).toHaveTransaction({
             //     from: transactionChecker.address,
             //     to: client.address,
             //     success: true,
-            //     op: Opcodes.transactionChecked,
+            //     op: Opcodes.TransactionChecked,
             // });
         }
         fees.print();

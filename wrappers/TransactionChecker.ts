@@ -5,17 +5,15 @@ export type TransactionCheckerConfig = {
     id?: number;
 };
 
-export const Opcodes = {
-    checkTransaction: 0x91d555f7,
-    transactionChecked: 0x756adff1,
-};
+export enum Opcodes {
+    CheckTransaction = 0x91d555f7,
+    TransactionChecked = 0x756adff1,
+}
 
-export const ErrorCodes = {
-    notExotic: 101,
-    notMerkleProof: 102,
-    txNotFoundInBlock: 200,
-    invalidTxHash: 201,
-};
+export enum ErrorCodes {
+    KeyNotFound = 200,
+    InvalidTxHash = 201,
+}
 
 export function transactionCheckerConfigToCell(config: TransactionCheckerConfig): Cell {
     return beginCell()
@@ -80,7 +78,7 @@ export class TransactionChecker implements Contract {
             value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell()
-                .storeUint(Opcodes.checkTransaction, 32)
+                .storeUint(Opcodes.CheckTransaction, 32)
                 .storeRef(
                     beginCell()
                         .storeRef(opts.transaction.proof)

@@ -3,26 +3,24 @@
 #include "utils.fc";
 
 (slice, int, int) read_hml(slice src, int key_len) impure inline {
-    if (src~load_bit()) {
-        if (src~load_bit()) {
-            ;; hml_same$11
-            int v = src~load_bit();
-            int n = src~load_uint(get_bit_size(key_len));
-            int s = (v << n) - v;
-            return (src, s, n);
-        } else {
-            ;; hml_long$10
-            int n = src~load_uint(get_bit_size(key_len));
-            int s = src~load_uint(n);
-            return (src, s, n);
-        }
-    } else {
+    ifnot (src~load_bit()) {
         ;; hml_short$0
         int n = src~load_ones();
         src~skip_bits(1);
         int s = src~load_uint(n);
         return (src, s, n);
     }
+    ifnot (src~load_bit()) {
+        ;; hml_long$10
+        int n = src~load_uint(get_bit_size(key_len));
+        int s = src~load_uint(n);
+        return (src, s, n);
+    }
+    ;; hml_same$11
+    int v = src~load_bit();
+    int n = src~load_uint(get_bit_size(key_len));
+    int s = (v << n) - v;
+    return (src, s, n);
 }
 
 slice aug_dict_get(slice src, slice key) impure inline {

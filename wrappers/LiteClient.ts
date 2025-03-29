@@ -20,23 +20,23 @@ export function liteClientConfigToCell(config: LiteClientConfig): Cell {
         .endCell();
 }
 
-export const Opcodes = {
-    newKeyBlock: 0x11a78ffe,
-    checkBlock: 0x8eaa9d76,
-    ok: 0xff8ff4e1,
-    correct: 0xce02b807,
-};
+export enum Opcodes {
+    NewKeyBlock = 0x11a78ffe,
+    CheckBlock = 0x8eaa9d76,
+    Ok = 0xff8ff4e1,
+    Correct = 0xce02b807,
+}
 
-export const ErrorCodes = {
-    notExotic: 101,
-    notMerkleProof: 102,
-    notKeyBlock: 111,
-    keyBlockFromSameEpoch: 112,
-    keyBlockFromOldEpoch: 113,
-    invalidBlockSignature: 114,
-    notEnoughSignatures: 115,
-    invalidEpoch: 116,
-};
+export enum ErrorCodes {
+    NotExotic = 101,
+    NotMerkleProof = 102,
+    NotKeyBlock = 111,
+    KeyBlockFromSameEpoch = 112,
+    KeyBlockFromOldEpoch = 113,
+    InvalidBlockSignature = 114,
+    NotEnoughSignatures = 115,
+    InvalidEpoch = 116,
+}
 
 export class LiteClient implements Contract {
     constructor(
@@ -80,7 +80,7 @@ export class LiteClient implements Contract {
             value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell()
-                .storeUint(Opcodes.newKeyBlock, 32)
+                .storeUint(Opcodes.NewKeyBlock, 32)
                 .storeRef(beginCell().storeBuffer(opts.block.fileHash, 32).storeRef(opts.block.blockProof).endCell())
                 .storeRef(opts.signatures)
                 .storeUint(opts.queryID ?? 0, 64)
@@ -106,7 +106,7 @@ export class LiteClient implements Contract {
             value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell()
-                .storeUint(Opcodes.checkBlock, 32)
+                .storeUint(Opcodes.CheckBlock, 32)
                 .storeRef(
                     beginCell().storeBuffer(opts.block.fileHash, 32).storeBuffer(opts.block.rootHash, 32).endCell(),
                 )

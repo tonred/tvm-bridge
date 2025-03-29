@@ -1,6 +1,6 @@
 import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from '@ton/core';
 
-export class HashmapTest implements Contract {
+export class DictTest implements Contract {
     constructor(
         readonly address: Address,
         readonly init?: { code: Cell; data: Cell },
@@ -10,7 +10,7 @@ export class HashmapTest implements Contract {
         const data = beginCell().endCell();
         const init = { code, data };
         const address = contractAddress(workchain, init);
-        return new HashmapTest(address, init);
+        return new DictTest(address, init);
     }
 
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {

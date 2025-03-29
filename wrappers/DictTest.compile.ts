@@ -2,5 +2,5 @@ import { CompilerConfig } from '@ton/blueprint';
 
 export const compile: CompilerConfig = {
     lang: 'func',
-    targets: ['contracts/tests/hashmap_test.fc'],
+    targets: ['contracts/tests/dict_test.fc'],
 };

@@ -109,26 +109,26 @@ describe.each([
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: client.address,
                 to: transactionChecker.address,
-                op: Opcodes.checkTransaction,
+                op: Opcodes.CheckTransaction,
                 success: true,
             });
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: transactionChecker.address,
                 to: liteClient.address,
-                op: LiteClientOpcodes.checkBlock,
+                op: LiteClientOpcodes.CheckBlock,
                 success: true,
             });
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: liteClient.address,
                 to: transactionChecker.address,
-                op: LiteClientOpcodes.correct,
+                op: LiteClientOpcodes.Correct,
                 success: true,
             });
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: transactionChecker.address,
                 to: client.address,
                 success: true,
-                op: Opcodes.transactionChecked,
+                op: Opcodes.TransactionChecked,
             });
         }
     });
@@ -162,9 +162,9 @@ describe.each([
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: client.address,
                 to: transactionChecker.address,
-                op: Opcodes.checkTransaction,
+                op: Opcodes.CheckTransaction,
                 success: false,
-                exitCode: ErrorCodes.invalidTxHash,
+                exitCode: ErrorCodes.InvalidTxHash,
             });
         }
     });
@@ -201,15 +201,15 @@ describe.each([
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: client.address,
                 to: transactionChecker.address,
-                op: Opcodes.checkTransaction,
+                op: Opcodes.CheckTransaction,
                 success: true,
             });
             expect(checkTxResult.transactions).toHaveTransaction({
                 from: transactionChecker.address,
                 to: liteClient.address,
-                op: LiteClientOpcodes.checkBlock,
+                op: LiteClientOpcodes.CheckBlock,
                 success: false,
-                exitCode: LiteClientErrorCodes.invalidBlockSignature,
+                exitCode: LiteClientErrorCodes.InvalidBlockSignature,
             });
         }
     });

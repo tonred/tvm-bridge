@@ -5,15 +5,15 @@ export type TransactionCheckerConfig = {
     liteClientCode: Cell;
 };
 
-export const Opcodes = {
-    checkTransaction: 0x91d555f7,
-    transactionChecked: 0x756adff1,
-};
+export enum Opcodes {
+    CheckTransaction = 0x91d555f7,
+    TransactionChecked = 0x756adff1,
+}
 
-export const ErrorCodes = {
-    notExotic: 101,
-    notMerkleProof: 102,
-};
+export enum ErrorCodes {
+    NotExotic = 101,
+    NotMerkleProof = 102,
+}
 
 export function transactionCheckerConfigToCell(config: TransactionCheckerConfig): Cell {
     return beginCell().storeAddress(config.liteClient).storeRef(config.liteClientCode).endCell();
@@ -76,7 +76,7 @@ export class TransactionCheckerContactless implements Contract {
             value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
             body: beginCell()
-                .storeUint(Opcodes.checkTransaction, 32)
+                .storeUint(Opcodes.CheckTransaction, 32)
                 .storeRef(
                     beginCell()
                         .storeBuffer(opts.transaction.id, 32)
