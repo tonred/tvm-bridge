@@ -4,7 +4,7 @@
 #include "imports/shared.fc";
 
 global int ctx_current_epoch_since;  ;; starting timestamp of the current validator epoch
-global cell ctx_past_epochs;         ;; past epochs dictionary, key=epoch_scince:uint32 value=epoch_data_hash:uint256
+global cell ctx_past_epochs;         ;; past epochs dictionary, key=epoch_scince:uint32 value=epoch_data:cell(lib_ref)
 global int ctx_epochs_counter;       ;; past epochs dictionary item counter
 
 

@@ -81,7 +81,7 @@ cell store_epoch_data(
     return b.end_cell();
 }
 
-() tx_checker::lookup_tx_in_block(cell block, int tx_id, int lt, slice account_block_id) impure inline {
+() tx_checker::lookup_tx_in_block(cell block, int tx_id, slice lt, slice account_block_id) impure inline {
     cell account_blocks = block.begin_parse()
         .load_ref_3()
         .begin_parse()
@@ -89,13 +89,12 @@ cell store_epoch_data(
         .begin_parse()
         .preload_ref();
 
-    (slice account_block, _) = account_blocks
+    slice account_block = account_blocks
         .begin_parse()
         .aug_dict_get(account_block_id);
     account_block~skip_currency_collection();
     account_block~skip_bits(4 + 256);
-    (slice tx, int found) = account_block.aug_dict_get(begin_cell().store_uint(lt, 64).end_cell().begin_parse());
-    throw_unless(error::tx_not_found_in_block, found);
+    slice tx = account_block.aug_dict_get(lt);
     int hash = tx~load_ref().cell_hash_0();
     throw_unless(error::invalid_tx_hash, hash == tx_id);
 }

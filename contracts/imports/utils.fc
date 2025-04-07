@@ -6,12 +6,14 @@ cell end_cell_exotic(builder b) asm "ONE ENDXC";
 int check_signature_raw(int hash, slice signature, int public_key) asm "x{F916} @Defop CHKSIGNURAW CHKSIGNURAW";
 int check_data_signature_raw(slice data, slice signature, int public_key) asm "x{F917} @Defop CHKSIGNSRAW CHKSIGNSRAW";
 
+(slice, slice) load_ref_slice(slice s) asm "LDREFRTOS";
 (slice, int) begin_parse_exotic(cell x) asm "XCTOS";
 cell load_ref_1(slice s) asm "1 PLDREFIDX";
 cell load_ref_2(slice s) asm "2 PLDREFIDX";
 cell load_ref_3(slice s) asm "3 PLDREFIDX";
 cell load_ref_n(slice s, int n) asm "PLDREFVAR";
-(slice, (int)) ~load_ones(slice src) asm (-> 1 0) "LDONES";
+(slice, int) ~load_bit(slice s) asm (-> 1 0) "1 LDU";
+(slice, int) ~load_ones(slice src) asm (-> 1 0) "LDONES";
 
 int get_bit_size(int x) inline asm "UBITSIZE";
 int cell_hash_0(cell c) inline asm "0 CHASHI";

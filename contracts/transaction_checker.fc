@@ -29,6 +29,10 @@ global cell ctx_epochs_cache;
 
 int set_new_epoch_data(int epoch_id, cell data) impure inline {
     if (ctx_epochs_counter >= tx_checker::max_past_epochs) {
+        (_, int exists) = ctx_epochs_cache~udict_get_ref?(32, epoch_id);
+        if (exists) {
+            return true;
+        }
         (int key, _, _) = ctx_epochs_cache~udict::delete_get_min(32);
         if (key >= epoch_id) {
             return false;
@@ -146,11 +150,13 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
 
     tx_checker::lookup_tx_in_block(shard_block.null?() ? mc_block : shard_block, tx_hash, tx_lt, account_block);
 
+    int mc_block_gen_utime = gen_utime_from_block(mc_block);
     (cell epoch_data, int found) = ctx_epochs_cache.udict_get_ref?(32, epoch_id);
     ifnot (found) {
         cell callback = begin_cell()
             .store_uint(mc_block_hash, 256)
             .store_uint(file_hash, 256)
+            .store_uint(mc_block_gen_utime, 32)
             .store_ref(signatures)
             .store_ref(begin_cell().store_slice(sender_address).store_uint(tx_hash, 256).end_cell())
             .end_cell();
@@ -160,10 +166,9 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
     }
     var (epoch_since, epoch_until, _, cutoff_weight, validators_set) = parse_epoch_data(epoch_data);
 
-    int mc_block_gen_utime = gen_utime_from_block(mc_block);
     throw_unless(
         error::invalid_epoch_for_block,
-        (mc_block_gen_utime >= epoch_since) & (mc_block_gen_utime <= (epoch_until + 172800)) ;; 2 days
+        (mc_block_gen_utime >= epoch_since) & (mc_block_gen_utime <= (epoch_until + tx_checker::epoch_until_grace_period))
     );
 
     ;; Verify the block signatures using the current validators set.
@@ -191,16 +196,21 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
         slice callback = callback.begin_parse();
         int block_hash = callback~load_uint(256);
         int file_hash = callback~load_uint(256);
+        int mc_block_gen_utime = callback~load_uint(32);
         cell signatures = callback~load_ref();
         slice child_callback = callback~load_ref_slice();
         var (
-            _, ;; epoch_since,
-            _, ;; epoch_until,
+            epoch_since,
+            epoch_until,
             _, ;; main_validators,
             cutoff_weight,
             validators_set
         ) = parse_epoch_data(epoch_data);
 
+        throw_unless(
+            error::invalid_epoch_for_block,
+            (mc_block_gen_utime >= epoch_since) & (mc_block_gen_utime <= (epoch_until + tx_checker::epoch_until_grace_period))
+        );
 
         ;; Verify the block signatures using validators set.
         verify_block_signatures(
