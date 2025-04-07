@@ -42,25 +42,25 @@
 
 ;;; Loads epoch data
 ;;; returns:
-;;; `epoch_since`:uint32       - starting timestamp of the validator epoch
-;;; `epoch_until`:uint32       - ending timestamp of the validator epoch
-;;; `main_validators`:uint16   - number of validators for masterchain in epoch.
-;;; `cutoff_weight`:grams      - minimum total validators weight needed for block ation.
-;;; `validators_set`:cell      - validators set with pubkey and weight, sorted by weight
+;;; `epoch_since`:uint32        - starting timestamp of the validator epoch
+;;; `epoch_until`:uint32        - ending timestamp of the validator epoch
+;;; `main_validators`:uint16    - number of validators for masterchain in epoch
+;;; `cutoff_weight`:grams       - minimum total validators weight needed for block validation
+;;; `validators`:cell           - validators set with pubkey and weight, sorted by weight
 var parse_epoch_data(cell data) impure inline {
     slice cs = data.begin_parse();
     int epoch_since = cs~load_uint(32);
     int epoch_until = cs~load_uint(32);
     int main_validators = cs~load_uint(16);
     int cutoff_weight = cs~load_grams();
-    cell validators_set = cs~load_ref();
+    cell validators = cs.preload_ref();
 
     return (
         epoch_since,
         epoch_until,
         main_validators,
         cutoff_weight,
-        validators_set
+        validators
     );
 }
 
@@ -70,23 +70,21 @@ cell store_epoch_data(
     int epoch_until,
     int main_validators,
     int cutoff_weight,
-    cell validators_set
+    cell validators
 ) impure inline {
     builder b = begin_cell()
         .store_uint(epoch_since, 32)
         .store_uint(epoch_until, 32)
         .store_uint(main_validators, 16)
         .store_grams(cutoff_weight)
-        .store_ref(validators_set);
+        .store_ref(validators);
     return b.end_cell();
 }
 
-() tx_checker::lookup_tx_in_block(cell block, int tx_id, slice lt, slice account_block_id) impure inline {
+() tx_checker::lookup_tx_in_block(cell block, int tx_hash, slice tx_lt, slice account_block_id) impure inline {
     cell account_blocks = block.begin_parse()
-        .load_ref_3()
-        .begin_parse()
-        .load_ref_2()
-        .begin_parse()
+        .load_ref_3().begin_parse()
+        .load_ref_2().begin_parse()
         .preload_ref();
 
     slice account_block = account_blocks
@@ -94,7 +92,7 @@ cell store_epoch_data(
         .aug_dict_get(account_block_id);
     account_block~skip_currency_collection();
     account_block~skip_bits(4 + 256);
-    slice tx = account_block.aug_dict_get(lt);
-    int hash = tx~load_ref().cell_hash_0();
-    throw_unless(error::invalid_tx_hash, hash == tx_id);
+    slice tx = account_block.aug_dict_get(tx_lt);
+    int hash = tx.preload_ref().cell_hash_0();
+    throw_unless(error::invalid_tx_hash, hash == tx_hash);
 }

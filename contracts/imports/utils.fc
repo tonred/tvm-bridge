@@ -17,8 +17,6 @@ cell load_ref_n(slice s, int n) asm "PLDREFVAR";
 
 int get_bit_size(int x) inline asm "UBITSIZE";
 int cell_hash_0(cell c) inline asm "0 CHASHI";
-int slice_has_prefix(slice s, slice pfx) inline asm "SDPFXREV";
-builder store_same(builder b, int n, int x) inline asm "STSAME";
 
 (cell) udict_get_ref(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGETREF" "DROP";
 (slice) udict_get(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "DROP";
@@ -31,7 +29,7 @@ builder store_same(builder b, int n, int x) inline asm "STSAME";
     int ty = s~load_uint(8);
     throw_unless(error::not_merkle_proof, ty == cell_type::merkle_proof);
 
-    return (s~load_ref(), s~load_uint(256));
+    return (s.preload_ref(), s.preload_uint(256));
 }
 
 (slice, ()) skip_currency_collection(slice cs) impure inline {

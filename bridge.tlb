@@ -21,8 +21,8 @@ sync_epoch#5323f31d epoch_id:uint32 = InternalMsgBody;
 
 
 proof_chain_root#_ {n:#}
-  file_hash:uint256 vset_utime_since:uint32
-  mc_block:^Cell mc_signatures:^(Hashmap 16 bits512) head:(ProofChainHead ~n) = ProofChainRoot;
+  file_hash:uint256 epoch_id:uint32
+  mc_block:^Cell signatures:^(Hashmap 16 bits512) head:(ProofChainHead ~n) = ProofChainRoot;
 
 proof_chain_head_empty#_ = ProofChainHead ~0;
 proof_chain_head_1#_ sc_block1:^Cell = ProofChainHead ~1;

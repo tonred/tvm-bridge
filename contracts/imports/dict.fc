@@ -43,7 +43,7 @@ slice aug_dict_get(slice src, slice key) impure inline {
 slice bintree_search(slice cs) impure inline {
     while (cs~load_bit()) {
         (slice left, int exotic) = cs~load_ref().begin_parse_exotic();
-        cs = exotic ? cs~load_ref().begin_parse() : left;
+        cs = exotic ? cs.preload_ref().begin_parse() : left;
     }
     return cs;
 }

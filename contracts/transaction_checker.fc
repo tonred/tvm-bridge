@@ -14,7 +14,7 @@ global cell ctx_epochs_cache;
 
     ctx_lite_client_addr = ds~load_msg_addr();
     ctx_epochs_counter = ds~load_uint(16);
-    ctx_epochs_cache = ds~load_dict();
+    ctx_epochs_cache = ds.preload_dict();
 }
 
 () save_data() impure inline {
@@ -80,7 +80,9 @@ global cell ctx_epochs_cache;
 }
 
 int get_prev_block_hash(cell block) inline {
-    slice prev_ref = block.begin_parse().preload_ref().begin_parse().load_ref_1().begin_parse();
+    slice prev_ref = block.begin_parse()
+        .preload_ref().begin_parse()
+        .load_ref_1().begin_parse();
     prev_ref~skip_bits(96);
     return prev_ref.preload_uint(256);
 }
@@ -112,13 +114,13 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
     (slice wc, _) = shards_hashes.idict_get?(32, 0);
     slice shard_descr = bintree_search(wc~load_ref_slice());
     shard_descr~skip_bits(196); ;; 4 + 32 + 32 + 64 + 64
-    return shard_descr~load_uint(256);
+    return shard_descr.preload_uint(256);
 }
 
 (int) gen_utime_from_block(cell block) inline {
-    slice cs = block.begin_parse().preload_ref().begin_parse();
-    cs~skip_bits(248); ;; 64 + 16 + 64 + 104
-    return cs~load_uint(32);
+    slice block_info = block.begin_parse().preload_ref().begin_parse();
+    block_info~skip_bits(248); ;; 64 + 16 + 64 + 104
+    return block_info.preload_uint(32);
 }
 
 () check_mc_block(cell epoch_data, int root_hash, int file_hash, int gen_utime, cell signatures) impure inline {
@@ -206,7 +208,7 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
 
     slice child_callback = callback~load_ref_slice();
     slice sender_address = child_callback~load_msg_addr();
-    int tx_hash = child_callback~load_uint(256);
+    int tx_hash = child_callback.preload_uint(256);
     send_response(response::transaction_checked, true, sender_address, tx_hash);
 }
 
@@ -241,7 +243,8 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
         return ();
     }
     if (op == response::epoch_data) {
-        throw_unless(error::not_lite_client, equal_slices_bits(cs~load_msg_addr(), ctx_lite_client_addr));
+        slice sender_address = cs~load_msg_addr();
+        throw_unless(error::not_lite_client, equal_slices_bits(sender_address, ctx_lite_client_addr));
         int epoch_id = in_msg_body~load_uint(32);
         cell epoch_data = in_msg_body~load_maybe_ref();
         save_epoch(epoch_id, epoch_data);

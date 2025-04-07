@@ -21,10 +21,6 @@
     slice sender_address = cs~load_msg_addr();
     throw_unless(error::not_owner, equal_slices_bits(owner, sender_address));
 
-    cell lib = in_msg_body~load_ref();
+    cell lib = in_msg_body.preload_ref();
     set_lib(lib, 2);
 }
-
-
-
-
