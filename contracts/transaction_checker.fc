@@ -27,18 +27,23 @@ global cell ctx_epochs_cache;
     );
 }
 
-() save_epoch(int epoch_id, cell data) impure inline {
-    int is_new = ctx_epochs_cache~udict_add_ref?(32, epoch_id, data);
+int save_epoch(int epoch_id, cell data) impure inline {
+    cell epochs_cache = ctx_epochs_cache;
+    int is_new = epochs_cache~udict_add_ref?(32, epoch_id, data);
     ifnot (is_new) {
-        return ();
+        return true;
     }
-    if (ctx_epochs_counter > tx_checker::max_past_epochs) {
-        (int key, _, _) = ctx_epochs_cache~udict::delete_get_min(32);
-        throw_if(error::too_old_epoch, epoch_id < key); ;; rollback both changes in cache
+    if (ctx_epochs_counter >= tx_checker::max_past_epochs) {
+        (int key, _, _) = epochs_cache~udict::delete_get_min(32);
+        if (epoch_id < key) {
+            return false;
+        }
     } else {
         ctx_epochs_counter += 1;
     }
+    ctx_epochs_cache = epochs_cache;
     save_data();
+    return true;
 }
 
 () lite_client::query_epoch_data(int epoch_id, cell callback) impure inline {
@@ -177,16 +182,17 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
     (cell epoch_data, int found) = ctx_epochs_cache.udict_get_ref?(32, epoch_id);
     ifnot (found) {
         cell callback = begin_cell()
+            .store_ref(
+                begin_cell()
+                .store_slice(sender_address)
+                .store_uint(tx_hash, 256)
+                .end_cell()
+            )
             .store_uint(root_hash, 256)
             .store_uint(file_hash, 256)
             .store_uint(gen_utime, 32)
             .store_ref(signatures)
-            .store_ref(begin_cell()
-                .store_slice(sender_address)
-                .store_uint(tx_hash, 256)
-                .end_cell()
-            ).end_cell();
-
+            .end_cell();
         lite_client::query_epoch_data(epoch_id, callback);
         return ();
     }
@@ -195,17 +201,21 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
     send_response(response::transaction_checked, true, sender_address, tx_hash);
 }
 
-() on_check_transaction_callback(cell epoch_data, cell callback_data) impure inline {
+() on_check_transaction_callback(cell epoch_data, cell callback_data, int valid) impure inline {
     slice callback = callback_data.begin_parse();
-    int root_hash = callback~load_uint(256);
-    int file_hash = callback~load_uint(256);
-    int gen_utime = callback~load_uint(32);
-    cell signatures = callback~load_ref();
-    check_mc_block(epoch_data, root_hash, file_hash, gen_utime, signatures);
-
     slice child_callback = callback~load_ref_slice();
     slice sender_address = child_callback~load_msg_addr();
     int tx_hash = child_callback.preload_uint(256);
+
+    ifnot (valid) {
+        send_response(response::transaction_checked, false, sender_address, tx_hash);
+    }
+
+    int root_hash = callback~load_uint(256);
+    int file_hash = callback~load_uint(256);
+    int gen_utime = callback~load_uint(32);
+    cell signatures = callback.preload_ref();
+    check_mc_block(epoch_data, root_hash, file_hash, gen_utime, signatures);
     send_response(response::transaction_checked, true, sender_address, tx_hash);
 }
 
@@ -244,11 +254,11 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
         throw_unless(error::not_lite_client, equal_slices_bits(sender_address, ctx_lite_client_addr));
         int epoch_id = in_msg_body~load_uint(32);
         cell epoch_data = in_msg_body~load_maybe_ref();
-        save_epoch(epoch_id, epoch_data);
+        int valid = save_epoch(epoch_id, epoch_data);
 
         cell callback_data = in_msg_body~load_maybe_ref();
         ifnot (callback_data.null?()) {
-            on_check_transaction_callback(epoch_data, callback_data);
+            on_check_transaction_callback(epoch_data, callback_data, valid);
         }
         return ();
     }
