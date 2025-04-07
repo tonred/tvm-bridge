@@ -27,22 +27,21 @@ global cell ctx_epochs_cache;
     );
 }
 
-int set_new_epoch_data(int epoch_id, cell data) impure inline {
-    if (ctx_epochs_counter >= tx_checker::max_past_epochs) {
-        (_, int exists) = ctx_epochs_cache~udict_get_ref?(32, epoch_id);
-        if (exists) {
-            return true;
-        }
+() save_epoch(int epoch_id, cell data) impure inline {
+    int is_new = ctx_epochs_cache~udict_add_ref?(32, epoch_id, data);
+    ifnot (is_new) {
+        return ();
+    }
+    if (ctx_epochs_counter > tx_checker::max_past_epochs) {
         (int key, _, _) = ctx_epochs_cache~udict::delete_get_min(32);
-        if (key >= epoch_id) {
-            return false;
+        if (epoch_id < key) {
+            ;; rollback both changes in cache
+            throw(error::too_old_epoch);
         }
     } else {
         ctx_epochs_counter += 1;
     }
-    ctx_epochs_cache~udict_set_ref(32, epoch_id, data);
     save_data();
-    return true;
 }
 
 () lite_client::query_epoch_data(int epoch_id, cell callback) impure inline {
@@ -63,10 +62,10 @@ int set_new_epoch_data(int epoch_id, cell data) impure inline {
 }
 
 
-() send_response(int op, int valid, slice address, int tx_hash) impure inline {
+() send_response(int op, int valid, slice sender_address, int tx_hash) impure inline {
     cell msg = begin_cell()
         .store_msg_flags_and_address_none(NON_BOUNCEABLE)
-        .store_slice(address)
+        .store_slice(sender_address)
         .store_coins(0)
         .store_prefix_only_body()
         .store_op(op)
@@ -86,12 +85,12 @@ int get_prev_block_hash(cell block) inline {
     return prev_ref.preload_uint(256);
 }
 
-cell check_shards_chain(int parent_hash, cell chain) inline {
+cell parse_shards_chain(int parent_hash, cell chain) inline {
     slice cs = chain.begin_parse();
     int refs = cs.slice_refs();
     int has_child = refs == 4;
     cell shard_block = null();
-    repeat ((has_child ? 3 : refs) - 1) {
+    repeat (min(refs, 3) - 1) {
         shard_block = cs~load_ref();
         throw_unless(error::invalid_sc_proof, parent_hash == shard_block.cell_hash_0());
         parent_hash = get_prev_block_hash(shard_block);
@@ -99,7 +98,8 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
     shard_block = cs~load_ref();
     throw_unless(error::invalid_sc_proof, parent_hash == shard_block.cell_hash_0());
     if (has_child) {
-        return check_shards_chain(get_prev_block_hash(shard_block), cs~load_ref());
+        parent_hash = get_prev_block_hash(shard_block);
+        return parse_shards_chain(parent_hash, cs~load_ref());
     }
     return shard_block;
 }
@@ -117,8 +117,32 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
 
 (int) gen_utime_from_block(cell block) inline {
     slice cs = block.begin_parse().preload_ref().begin_parse();
-    cs~skip_bits(248); ;; 70 + 10 + 32 + 136
+    cs~skip_bits(248); ;; 64 + 16 + 64 + 104
     return cs~load_uint(32);
+}
+
+() check_mc_block(cell epoch_data, int root_hash, int file_hash, int gen_utime, cell signatures) impure inline {
+    var (
+        epoch_since,
+        epoch_until,
+        _, ;; main_validators,
+        cutoff_weight,
+        validators
+    ) = parse_epoch_data(epoch_data);
+
+    throw_unless(
+        error::invalid_epoch_for_block,
+        (gen_utime >= epoch_since) & (gen_utime <= (epoch_until + tx_checker::epoch_until_grace_period))
+    );
+
+    ;; verify the mc block signatures using validators set
+    verify_block_signatures(
+        signatures,
+        validators,
+        root_hash,
+        file_hash,
+        cutoff_weight
+    );
 }
 
 () check_transaction(cell proof_chain_data, cell tx_proof_data, slice sender_address) impure inline {
@@ -129,101 +153,61 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
     int epoch_id = proof_chain~load_uint(32);
 
     cell mc_block = proof_chain~load_ref();
-    int mc_block_hash = mc_block.cell_hash_0();
-
     cell signatures = proof_chain~load_ref();
 
     cell shard_block = null();
-    if proof_chain.slice_refs() > 0 {
+    if (proof_chain.slice_refs() > 0) {
         shard_block = proof_chain~load_ref();
-        int root_shard_block_hash = shard_block.cell_hash_0();
-        if proof_chain.slice_refs() > 0 {
-            shard_block = check_shards_chain(get_prev_block_hash(shard_block), proof_chain~load_ref());
+        int shard_block_hash = load_shard_block_hash(mc_block);
+        throw_unless(error::sc_block_not_in_mc_state, shard_block_hash == shard_block.cell_hash_0());
+        if (proof_chain.slice_refs() > 0) {
+            int parent_hash = get_prev_block_hash(shard_block);
+            shard_block = parse_shards_chain(parent_hash, proof_chain~load_ref());
         }
-        throw_unless(error::sc_block_not_in_mc_state, root_shard_block_hash == load_shard_block_hash(mc_block));
     }
 
     slice account_block = tx_proof~load_bits(256);
     slice tx_lt = tx_proof~load_bits(64);
     int tx_hash = tx_proof~load_uint(256);
-    tx_proof.end_parse();
 
-    tx_checker::lookup_tx_in_block(shard_block.null?() ? mc_block : shard_block, tx_hash, tx_lt, account_block);
+    cell block = shard_block.null?() ? mc_block : shard_block;
+    tx_checker::lookup_tx_in_block(block, tx_hash, tx_lt, account_block);
 
-    int mc_block_gen_utime = gen_utime_from_block(mc_block);
+    int root_hash = mc_block.cell_hash_0();
+    int gen_utime = gen_utime_from_block(mc_block);
     (cell epoch_data, int found) = ctx_epochs_cache.udict_get_ref?(32, epoch_id);
     ifnot (found) {
         cell callback = begin_cell()
-            .store_uint(mc_block_hash, 256)
+            .store_uint(root_hash, 256)
             .store_uint(file_hash, 256)
-            .store_uint(mc_block_gen_utime, 32)
+            .store_uint(gen_utime, 32)
             .store_ref(signatures)
-            .store_ref(begin_cell().store_slice(sender_address).store_uint(tx_hash, 256).end_cell())
-            .end_cell();
+            .store_ref(begin_cell()
+                .store_slice(sender_address)
+                .store_uint(tx_hash, 256)
+                .end_cell()
+            ).end_cell();
 
         lite_client::query_epoch_data(epoch_id, callback);
         return ();
     }
-    var (epoch_since, epoch_until, _, cutoff_weight, validators_set) = parse_epoch_data(epoch_data);
 
-    throw_unless(
-        error::invalid_epoch_for_block,
-        (mc_block_gen_utime >= epoch_since) & (mc_block_gen_utime <= (epoch_until + tx_checker::epoch_until_grace_period))
-    );
-
-    ;; Verify the block signatures using the current validators set.
-    verify_block_signatures(
-        signatures,
-        validators_set,
-        mc_block_hash,
-        file_hash,
-        cutoff_weight
-    );
+    check_mc_block(epoch_data, root_hash, file_hash, gen_utime, signatures);
     send_response(response::transaction_checked, true, sender_address, tx_hash);
 }
 
-() save_epoch_and_check_block(int epoch_id, cell epoch_data, cell callback) impure inline {
-    int valid = epoch_data.null?() ? false : set_new_epoch_data(epoch_id, epoch_data);
-    ifnot (valid) {
-        slice child_callback = callback.begin_parse().load_ref_1().begin_parse();
-        slice sender_address = child_callback~load_msg_addr();
-        int tx_hash = child_callback~load_uint(256);
-        send_response(response::transaction_checked, false, sender_address, tx_hash);
-        return ();
-    }
+() on_check_transaction_callback(cell epoch_data, cell callback_data) impure inline {
+    slice callback = callback_data.begin_parse();
+    int root_hash = callback~load_uint(256);
+    int file_hash = callback~load_uint(256);
+    int gen_utime = callback~load_uint(32);
+    cell signatures = callback~load_ref();
+    check_mc_block(epoch_data, root_hash, file_hash, gen_utime, signatures);
 
-    ifnot (callback.null?()) {
-        slice callback = callback.begin_parse();
-        int block_hash = callback~load_uint(256);
-        int file_hash = callback~load_uint(256);
-        int mc_block_gen_utime = callback~load_uint(32);
-        cell signatures = callback~load_ref();
-        slice child_callback = callback~load_ref_slice();
-        var (
-            epoch_since,
-            epoch_until,
-            _, ;; main_validators,
-            cutoff_weight,
-            validators_set
-        ) = parse_epoch_data(epoch_data);
-
-        throw_unless(
-            error::invalid_epoch_for_block,
-            (mc_block_gen_utime >= epoch_since) & (mc_block_gen_utime <= (epoch_until + tx_checker::epoch_until_grace_period))
-        );
-
-        ;; Verify the block signatures using validators set.
-        verify_block_signatures(
-            signatures,
-            validators_set,
-            block_hash,
-            file_hash,
-            cutoff_weight
-        );
-        slice sender_address = child_callback~load_msg_addr();
-        int tx_hash = child_callback~load_uint(256);
-        send_response(response::transaction_checked, true, sender_address, tx_hash);
-    }
+    slice child_callback = callback~load_ref_slice();
+    slice sender_address = child_callback~load_msg_addr();
+    int tx_hash = child_callback~load_uint(256);
+    send_response(response::transaction_checked, true, sender_address, tx_hash);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -248,7 +232,6 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
         (cell proof_chain_data, _) = extract_merkle_proof(in_msg_body~load_ref());
         cell tx_proof_data = in_msg_body~load_ref();
         slice sender_address = cs~load_msg_addr();
-
         check_transaction(proof_chain_data, tx_proof_data, sender_address);
         return ();
     }
@@ -257,16 +240,17 @@ cell check_shards_chain(int parent_hash, cell chain) inline {
         lite_client::query_epoch_data(epoch_id, null());
         return ();
     }
-
     if (op == response::epoch_data) {
         throw_unless(error::not_lite_client, equal_slices_bits(cs~load_msg_addr(), ctx_lite_client_addr));
         int epoch_id = in_msg_body~load_uint(32);
         cell epoch_data = in_msg_body~load_maybe_ref();
-        cell callback = in_msg_body~load_maybe_ref();
-        save_epoch_and_check_block(epoch_id, epoch_data, callback);
+        save_epoch(epoch_id, epoch_data);
+
+        cell callback_data = in_msg_body~load_maybe_ref();
+        ifnot (callback_data.null?()) {
+            on_check_transaction_callback(epoch_data, callback_data);
+        }
         return ();
     }
-
-
     throw(0xffff);
 }

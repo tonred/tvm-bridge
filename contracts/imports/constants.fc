@@ -18,6 +18,7 @@ const int error::not_lite_client           = 202;
 const int error::sc_block_not_in_mc_state  = 203;
 const int error::invalid_sc_proof          = 204;
 const int error::invalid_epoch_for_block   = 205;
+const int error::too_old_epoch             = 206;
 
 ;;; LibStore
 const int error::not_owner = 400;

@@ -22,7 +22,7 @@ builder store_same(builder b, int n, int x) inline asm "STSAME";
 
 (cell) udict_get_ref(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGETREF" "DROP";
 (slice) udict_get(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "DROP";
-
+(cell, int) udict_add_ref?(cell dict, int key_len, int index, cell value) asm(value index dict key_len) "DICTUADDREF";
 
 (cell, int) extract_merkle_proof(cell proof) impure inline {
     (slice s, int is_exotic) = proof.begin_parse_exotic();
