@@ -34,10 +34,7 @@ global cell ctx_epochs_cache;
     }
     if (ctx_epochs_counter > tx_checker::max_past_epochs) {
         (int key, _, _) = ctx_epochs_cache~udict::delete_get_min(32);
-        if (epoch_id < key) {
-            ;; rollback both changes in cache
-            throw(error::too_old_epoch);
-        }
+        throw_if(error::too_old_epoch, epoch_id < key); ;; rollback both changes in cache
     } else {
         ctx_epochs_counter += 1;
     }
