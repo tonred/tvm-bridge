@@ -13,6 +13,7 @@
     "@ton/blueprint": "^0.29.0",
     "@ton/sandbox": "0.27.1",
     "@ton/test-utils": "^0.4.2",
+    "@tychosdk/emulator": "0.1.7",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.8.7",
     "axios": "^1.7.9",

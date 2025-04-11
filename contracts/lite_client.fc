@@ -185,7 +185,8 @@ int process_new_key_block(cell bridge_block, cell signatures) impure inline {
     slice block_cs = block.begin_parse();
     cell block_info = block_cs.preload_ref();
 
-    var (is_key_block, seq_no, gen_utime, prev_key_block) = parse_tycho_block_info(block_info);
+    ;; var (is_key_block, seq_no, gen_utime, prev_key_block) = parse_tycho_block_info(block_info);
+    var (is_key_block, seq_no, gen_utime, prev_key_block) = parse_block_info(block_info);
 
     ;; Basic checks to ensure we are processing the correct block type:
     ;; - Must be a key block.

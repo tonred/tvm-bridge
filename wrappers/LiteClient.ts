@@ -69,7 +69,6 @@ export class LiteClient implements Contract {
             queryID?: number;
         },
     ) {
-        console.log(opts);
         await provider.internal(via, {
             value: opts.value,
             sendMode: SendMode.PAY_GAS_SEPARATELY,
