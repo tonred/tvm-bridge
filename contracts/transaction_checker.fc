@@ -209,6 +209,7 @@ cell parse_shards_chain(int parent_hash, cell chain) inline {
 
     ifnot (valid) {
         send_response(response::transaction_checked, false, sender_address, tx_hash);
+        return ();
     }
 
     int root_hash = callback~load_uint(256);
