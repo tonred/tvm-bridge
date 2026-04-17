@@ -1,0 +1,8 @@
+#include "imports/shared.fc";
+
+() recv_internal() impure {
+}
+
+var get_signatures_hash(cell signatures, int root_hash, int file_hash) method_id {
+    return parse_signatures_data(signatures.begin_parse(), root_hash, file_hash);
+}
